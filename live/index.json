@@ -1,0 +1,33 @@
+{
+  "type": "TRUETRADE_SCAN_INDEX_V1",
+  "source": "TheTrueTrade",
+  "market_count": 54,
+  "bucket_size": 10,
+  "bucket_count": 6,
+  "timeframes": {
+    "4h": {
+      "resolution": "240",
+      "seconds": 14400,
+      "limit": 120
+    },
+    "1h": {
+      "resolution": "60",
+      "seconds": 3600,
+      "limit": 200
+    },
+    "15m": {
+      "resolution": "15",
+      "seconds": 900,
+      "limit": 200
+    }
+  },
+  "instructions": "Open every SCREEN_BUCKET link, rank READY markets, then open RAW_SYMBOL links for the strongest candidates. Final trading analysis must be done by ChatGPT, not by this bridge.",
+  "bucket_urls": [
+    "https://tight-flower-7ee6.hoseinii6615.workers.dev/screen?bucket=0",
+    "https://tight-flower-7ee6.hoseinii6615.workers.dev/screen?bucket=1",
+    "https://tight-flower-7ee6.hoseinii6615.workers.dev/screen?bucket=2",
+    "https://tight-flower-7ee6.hoseinii6615.workers.dev/screen?bucket=3",
+    "https://tight-flower-7ee6.hoseinii6615.workers.dev/screen?bucket=4",
+    "https://tight-flower-7ee6.hoseinii6615.workers.dev/screen?bucket=5"
+  ]
+}
