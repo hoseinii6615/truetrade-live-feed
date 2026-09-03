@@ -1,0 +1,148 @@
+name: Update TrueTrade Live Feed
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    - cron: "2,17,32,47 * * * *"
+
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/update-live.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch TrueTrade data
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BASE="https://tight-flower-7ee6.hoseinii6615.workers.dev"
+          RAW_BASE="https://raw.githubusercontent.com/hoseinii6615/truetrade-live-feed/main/live"
+
+          rm -rf live
+          mkdir -p live/screens live/symbols
+
+          echo "Fetching scan index..."
+
+          curl -fsSL \
+            --retry 3 \
+            --retry-all-errors \
+            "$BASE/scan?format=json" \
+            | jq 'del(.generated_at)' \
+            > live/index.json
+
+          MARKET_COUNT="$(jq -r '.market_count' live/index.json)"
+          BUCKET_COUNT="$(jq -r '.bucket_count' live/index.json)"
+
+          echo "Markets: $MARKET_COUNT"
+          echo "Buckets: $BUCKET_COUNT"
+
+          for ((i=0; i<BUCKET_COUNT; i++)); do
+            echo "Fetching bucket $i..."
+
+            curl -fsSL \
+              --retry 3 \
+              --retry-all-errors \
+              "$BASE/screen?bucket=$i&format=json" \
+              | jq 'del(.generated_at)' \
+              > "live/screens/$i.json"
+          done
+
+          READY_COUNT="$(
+            jq -s \
+              '[.[].results[] | select(.status == "READY")] | length' \
+              live/screens/*.json
+          )"
+
+          echo "READY: $READY_COUNT"
+
+          jq -s \
+            '[.[].results[] | select(.status == "READY")]
+             | sort_by(.screen_priority)
+             | reverse
+             | .[:20]
+             | map(.symbol)' \
+            live/screens/*.json \
+            > live/top-symbols.json
+
+          echo "Fetching raw candles for top candidates..."
+
+          jq -r '.[]' live/top-symbols.json |
+          while read -r SYMBOL; do
+
+            echo "Fetching $SYMBOL..."
+
+            curl -fsSL \
+              --retry 3 \
+              --retry-all-errors \
+              "$BASE/symbol/$SYMBOL?format=json" \
+              | jq 'del(.generated_at)' \
+              > "live/symbols/$SYMBOL.json"
+          done
+
+          GENERATED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+          jq -n \
+            --arg type "TRUETRADE_GITHUB_FEED_V1" \
+            --arg source "TheTrueTrade" \
+            --arg generated_at "$GENERATED_AT" \
+            --arg worker "$BASE" \
+            --arg raw_base "$RAW_BASE" \
+            --argjson market_count "$MARKET_COUNT" \
+            --argjson ready_count "$READY_COUNT" \
+            --argjson bucket_count "$BUCKET_COUNT" \
+            --slurpfile top live/top-symbols.json \
+            '{
+              type: $type,
+              source: $source,
+              generated_at: $generated_at,
+              market_count: $market_count,
+              ready_count: $ready_count,
+              bucket_count: $bucket_count,
+              timeframes: ["4h","1h","15m"],
+              closed_candles_only: true,
+              worker_source: $worker,
+              raw_base: $raw_base,
+              scan_index: ($raw_base + "/index.json"),
+              top_symbols: $top[0],
+              top_symbols_file: ($raw_base + "/top-symbols.json"),
+              screen_files: [
+                range(0; $bucket_count)
+                | ($raw_base + "/screens/" + (tostring) + ".json")
+              ],
+              symbol_url_pattern:
+                ($raw_base + "/symbols/{SYMBOL}.json")
+            }' \
+            > live/manifest.json
+
+          jq . live/manifest.json
+
+      - name: Publish latest feed
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "TrueTrade Bot"
+          git config user.email "truetrade-bot@users.noreply.github.com"
+
+          git add live
+
+          if git diff --cached --quiet; then
+            echo "No data changes."
+            exit 0
+          fi
+
+          git commit -m "Update TrueTrade live feed"
+          git push
