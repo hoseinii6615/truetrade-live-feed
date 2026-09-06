@@ -1,44 +1,19 @@
 {
-  "type": "TRUETRADE_GITHUB_FEED_V1",
+  "type": "TRUETRADE_GITHUB_FEED_V2",
   "source": "TheTrueTrade",
-  "generated_at": "2026-09-06T04:41:13Z",
+  "generated_at": "2026-09-06T08:22:22Z",
   "market_count": 54,
-  "ready_count": 15,
-  "bucket_count": 6,
+  "observed_count": 54,
+  "ready_count": 48,
+  "data_error_count": 0,
+  "complete_universe": true,
   "timeframes": [
     "4h",
     "1h",
     "15m"
   ],
   "closed_candles_only": true,
-  "worker_source": "https://tight-flower-7ee6.hoseinii6615.workers.dev",
-  "raw_base": "https://raw.githubusercontent.com/hoseinii6615/truetrade-live-feed/main/live",
-  "scan_index": "https://raw.githubusercontent.com/hoseinii6615/truetrade-live-feed/main/live/index.json",
-  "top_symbols": [
-    "SOLUSDT",
-    "DOTUSDT",
-    "BCHUSDT",
-    "AVAXUSDT",
-    "ENAUSDT",
-    "BANDUSDT",
-    "ETHUSDT",
-    "NEARUSDT",
-    "AAVEUSDT",
-    "INJUSDT",
-    "QNTUSDT",
-    "ETCUSDT",
-    "1000SHIBUSDT",
-    "1000PEPEUSDT",
-    "SANDUSDT"
-  ],
-  "top_symbols_file": "https://raw.githubusercontent.com/hoseinii6615/truetrade-live-feed/main/live/top-symbols.json",
-  "screen_files": [
-    "https://raw.githubusercontent.com/hoseinii6615/truetrade-live-feed/main/live/screens/0.json",
-    "https://raw.githubusercontent.com/hoseinii6615/truetrade-live-feed/main/live/screens/1.json",
-    "https://raw.githubusercontent.com/hoseinii6615/truetrade-live-feed/main/live/screens/2.json",
-    "https://raw.githubusercontent.com/hoseinii6615/truetrade-live-feed/main/live/screens/3.json",
-    "https://raw.githubusercontent.com/hoseinii6615/truetrade-live-feed/main/live/screens/4.json",
-    "https://raw.githubusercontent.com/hoseinii6615/truetrade-live-feed/main/live/screens/5.json"
-  ],
-  "symbol_url_pattern": "https://raw.githubusercontent.com/hoseinii6615/truetrade-live-feed/main/live/symbols/{SYMBOL}.json"
+  "market_scan": "https://raw.githubusercontent.com/hoseinii6615/truetrade-live-feed/main/live/market-scan.json",
+  "scan_index": "https://raw.githubusercontent.com/hoseinii6615/truetrade-live-feed/main/live/scan-index.json",
+  "raw_symbol_pattern": "https://tight-flower-7ee6.hoseinii6615.workers.dev/symbol/{SYMBOL}?format=json"
 }
