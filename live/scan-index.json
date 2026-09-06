@@ -21,7 +21,8 @@
       "limit": 200
     }
   },
-  "instructions": "Open every SCREEN_BUCKET link, rank READY markets, then open RAW_SYMBOL links for the strongest candidates. Final trading analysis must be done by ChatGPT, not by this bridge.",
+  "live_snapshot_url": "https://tight-flower-7ee6.hoseinii6615.workers.dev/live?format=json",
+  "instructions": "Use /live?format=json for the continuously refreshed complete-universe screen. /screen buckets remain available as a backup transport. Final trading analysis must be done by ChatGPT.",
   "bucket_urls": [
     "https://tight-flower-7ee6.hoseinii6615.workers.dev/screen?bucket=0",
     "https://tight-flower-7ee6.hoseinii6615.workers.dev/screen?bucket=1",
