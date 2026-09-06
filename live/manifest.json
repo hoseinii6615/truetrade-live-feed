@@ -1,19 +1,18 @@
 {
-  "type": "TRUETRADE_GITHUB_FEED_V2",
-  "source": "TheTrueTrade",
-  "generated_at": "2026-09-06T15:52:37Z",
+  "type": "TRUETRADE_GITHUB_MIRROR_V4",
+  "source": "TheTrueTrade via Cloudflare Worker V4",
+  "mirror_generated_at": "2026-09-06T17:40:59Z",
+  "source_generated_at": "2026-09-06T17:33:07.196Z",
+  "target_15m_closed_time": 1788714900,
   "market_count": 54,
   "observed_count": 54,
   "ready_count": 48,
   "data_error_count": 0,
   "complete_universe": true,
-  "timeframes": [
-    "4h",
-    "1h",
-    "15m"
-  ],
   "closed_candles_only": true,
+  "verified_fresh_at_mirror_time": true,
   "market_scan": "https://raw.githubusercontent.com/hoseinii6615/truetrade-live-feed/main/live/market-scan.json",
-  "scan_index": "https://raw.githubusercontent.com/hoseinii6615/truetrade-live-feed/main/live/scan-index.json",
-  "raw_symbol_pattern": "https://tight-flower-7ee6.hoseinii6615.workers.dev/symbol/{SYMBOL}?format=json"
+  "health": "https://raw.githubusercontent.com/hoseinii6615/truetrade-live-feed/main/live/health.json",
+  "source_worker": "https://tight-flower-7ee6.hoseinii6615.workers.dev/live?format=json",
+  "note": "Reject this mirror if target_15m_closed_time is not the latest fully closed 15m candle at read time."
 }
