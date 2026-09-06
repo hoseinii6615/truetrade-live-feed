@@ -2,134 +2,210 @@ name: Update TrueTrade Live Feed
 
 on:
   workflow_dispatch:
-
   schedule:
     - cron: "2,17,32,47 * * * *"
-
   push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/update-live.yml"
+    branches: [main]
+    paths: [".github/workflows/update-live.yml"]
 
 permissions:
   contents: write
 
+concurrency:
+  group: truetrade-live-feed
+  cancel-in-progress: false
+
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 12
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Fetch TrueTrade data
+      - name: Build complete market snapshot
         shell: bash
         run: |
           set -euo pipefail
 
           BASE="https://tight-flower-7ee6.hoseinii6615.workers.dev"
           RAW_BASE="https://raw.githubusercontent.com/hoseinii6615/truetrade-live-feed/main/live"
+          WORK="$(mktemp -d)"
+          trap 'rm -rf "$WORK"' EXIT
+          mkdir -p "$WORK/screens"
 
-          rm -rf live
-          mkdir -p live/screens live/symbols
+          get_json() {
+            curl -fsSL --connect-timeout 15 --max-time 120 \
+              --retry 5 --retry-delay 2 --retry-all-errors "$1" \
+              | jq 'del(.generated_at)' > "$2"
+            jq -e . "$2" >/dev/null
+          }
 
-          echo "Fetching scan index..."
+          echo "1) Reading TrueTrade universe"
+          get_json "$BASE/scan?format=json" "$WORK/index.json"
 
-          curl -fsSL \
-            --retry 3 \
-            --retry-all-errors \
-            "$BASE/scan?format=json" \
-            | jq 'del(.generated_at)' \
-            > live/index.json
+          MARKET_COUNT="$(jq -r '.market_count // 0' "$WORK/index.json")"
+          BUCKET_COUNT="$(jq -r '.bucket_count // 0' "$WORK/index.json")"
+          (( MARKET_COUNT > 0 && BUCKET_COUNT > 0 )) || exit 1
 
-          MARKET_COUNT="$(jq -r '.market_count' live/index.json)"
-          BUCKET_COUNT="$(jq -r '.bucket_count' live/index.json)"
+          echo "Markets=$MARKET_COUNT Buckets=$BUCKET_COUNT"
 
-          echo "Markets: $MARKET_COUNT"
-          echo "Buckets: $BUCKET_COUNT"
+          echo "2) Reading every bucket serially"
 
           for ((i=0; i<BUCKET_COUNT; i++)); do
-            echo "Fetching bucket $i..."
+            success=0
 
-            curl -fsSL \
-              --retry 3 \
-              --retry-all-errors \
-              "$BASE/screen?bucket=$i&format=json" \
-              | jq 'del(.generated_at)' \
-              > "live/screens/$i.json"
+            for attempt in 1 2 3 4 5 6 7 8; do
+              TMP="$WORK/screens/$i.tmp.json"
+
+              if get_json "$BASE/screen?bucket=$i&format=json" "$TMP"; then
+                RESULTS="$(jq -r '.results | length' "$TMP")"
+
+                ERRORS="$(
+                  jq -r '
+                    [
+                      .results[]
+                      | select(
+                          .status == "DATA_ERROR"
+                          or ((.errors // {}) | length > 0)
+                        )
+                    ]
+                    | length
+                  ' "$TMP"
+                )"
+
+                if (( RESULTS > 0 && ERRORS == 0 )); then
+                  mv "$TMP" "$WORK/screens/$i.json"
+                  success=1
+                  echo "Bucket $i OK"
+                  break
+                fi
+              fi
+
+              rm -f "$TMP"
+
+              echo "Bucket $i retry $attempt"
+
+              sleep $((5 + attempt * 3))
+            done
+
+            if (( success != 1 )); then
+              echo "Bucket $i failed; NOT publishing partial snapshot."
+              exit 1
+            fi
+
+            sleep 4
           done
 
-          READY_COUNT="$(
-            jq -s \
-              '[.[].results[] | select(.status == "READY")] | length' \
-              live/screens/*.json
+          OBSERVED_COUNT="$(
+            jq -s '
+              [.[].results[].symbol]
+              | unique
+              | length
+            ' "$WORK"/screens/*.json
           )"
 
-          echo "READY: $READY_COUNT"
+          READY_COUNT="$(
+            jq -s '
+              [
+                .[].results[]
+                | select(.status == "READY")
+              ]
+              | length
+            ' "$WORK"/screens/*.json
+          )"
 
-          jq -s \
-            '[.[].results[] | select(.status == "READY")]
-             | sort_by(.screen_priority)
-             | reverse
-             | .[:20]
-             | map(.symbol)' \
-            live/screens/*.json \
-            > live/top-symbols.json
+          DATA_ERROR_COUNT="$(
+            jq -s '
+              [
+                .[].results[]
+                | select(
+                    .status == "DATA_ERROR"
+                    or ((.errors // {}) | length > 0)
+                  )
+              ]
+              | length
+            ' "$WORK"/screens/*.json
+          )"
 
-          echo "Fetching raw candles for top candidates..."
+          echo "Coverage=$OBSERVED_COUNT/$MARKET_COUNT"
+          echo "READY=$READY_COUNT"
+          echo "Errors=$DATA_ERROR_COUNT"
 
-          jq -r '.[]' live/top-symbols.json |
-          while read -r SYMBOL; do
-
-            echo "Fetching $SYMBOL..."
-
-            curl -fsSL \
-              --retry 3 \
-              --retry-all-errors \
-              "$BASE/symbol/$SYMBOL?format=json" \
-              | jq 'del(.generated_at)' \
-              > "live/symbols/$SYMBOL.json"
-          done
+          if (( OBSERVED_COUNT != MARKET_COUNT || DATA_ERROR_COUNT != 0 )); then
+            echo "Incomplete universe; previous good snapshot stays live."
+            exit 1
+          fi
 
           GENERATED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
-          jq -n \
-            --arg type "TRUETRADE_GITHUB_FEED_V1" \
-            --arg source "TheTrueTrade" \
+          echo "3) Creating full-market scan"
+
+          jq -s \
             --arg generated_at "$GENERATED_AT" \
-            --arg worker "$BASE" \
-            --arg raw_base "$RAW_BASE" \
             --argjson market_count "$MARKET_COUNT" \
+            --argjson observed_count "$OBSERVED_COUNT" \
             --argjson ready_count "$READY_COUNT" \
-            --argjson bucket_count "$BUCKET_COUNT" \
-            --slurpfile top live/top-symbols.json \
             '{
-              type: $type,
-              source: $source,
+              type: "TRUETRADE_MARKET_SCAN_V2",
+              source: "TheTrueTrade",
               generated_at: $generated_at,
               market_count: $market_count,
+              observed_count: $observed_count,
               ready_count: $ready_count,
-              bucket_count: $bucket_count,
+              data_error_count: 0,
+              complete_universe: true,
+              results: (
+                [.[].results[]]
+                | sort_by(.screen_priority)
+                | reverse
+              )
+            }' \
+            "$WORK"/screens/*.json \
+            > "$WORK/market-scan.json"
+
+          cp "$WORK/index.json" "$WORK/scan-index.json"
+
+          jq -n \
+            --arg generated_at "$GENERATED_AT" \
+            --arg raw_base "$RAW_BASE" \
+            --arg worker "$BASE" \
+            --argjson market_count "$MARKET_COUNT" \
+            --argjson observed_count "$OBSERVED_COUNT" \
+            --argjson ready_count "$READY_COUNT" \
+            '{
+              type: "TRUETRADE_GITHUB_FEED_V2",
+              source: "TheTrueTrade",
+              generated_at: $generated_at,
+              market_count: $market_count,
+              observed_count: $observed_count,
+              ready_count: $ready_count,
+              data_error_count: 0,
+              complete_universe: true,
               timeframes: ["4h","1h","15m"],
               closed_candles_only: true,
-              worker_source: $worker,
-              raw_base: $raw_base,
-              scan_index: ($raw_base + "/index.json"),
-              top_symbols: $top[0],
-              top_symbols_file: ($raw_base + "/top-symbols.json"),
-              screen_files: [
-                range(0; $bucket_count)
-                | ($raw_base + "/screens/" + (tostring) + ".json")
-              ],
-              symbol_url_pattern:
-                ($raw_base + "/symbols/{SYMBOL}.json")
+              market_scan: ($raw_base + "/market-scan.json"),
+              scan_index: ($raw_base + "/scan-index.json"),
+              raw_symbol_pattern:
+                ($worker + "/symbol/{SYMBOL}?format=json")
             }' \
-            > live/manifest.json
+            > "$WORK/manifest.json"
+
+          rm -rf live
+          mkdir -p live
+
+          cp \
+            "$WORK/manifest.json" \
+            "$WORK/market-scan.json" \
+            "$WORK/scan-index.json" \
+            live/
+
+          echo "Complete snapshot ready: $OBSERVED_COUNT/$MARKET_COUNT"
 
           jq . live/manifest.json
 
-      - name: Publish latest feed
+      - name: Publish latest complete feed
         shell: bash
         run: |
           set -euo pipefail
@@ -140,9 +216,9 @@ jobs:
           git add live
 
           if git diff --cached --quiet; then
-            echo "No data changes."
+            echo "No changes."
             exit 0
           fi
 
-          git commit -m "Update TrueTrade live feed"
+          git commit -m "Update complete TrueTrade market snapshot"
           git push
