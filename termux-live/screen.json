@@ -1,7 +1,7 @@
 {
   "type": "TRUETRADE_SCREEN_V2",
   "source": "TheTrueTrade direct REST",
-  "generated_at": "2026-09-07T15:15:19Z",
+  "generated_at": "2026-09-07T15:24:09Z",
   "closed_candles_only": true,
   "market_count": 63,
   "ready_count": 48,
