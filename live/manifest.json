@@ -1,9 +1,9 @@
 {
   "type": "TRUETRADE_GITHUB_MIRROR_V4",
   "source": "TheTrueTrade via Cloudflare Worker V4",
-  "mirror_generated_at": "2026-11-22T22:06:05Z",
-  "source_generated_at": "2026-11-22T22:03:13.894Z",
-  "target_15m_closed_time": 1795383900,
+  "mirror_generated_at": "2026-11-23T02:48:34Z",
+  "source_generated_at": "2026-11-23T02:48:12.532Z",
+  "target_15m_closed_time": 1795401000,
   "market_count": 71,
   "observed_count": 71,
   "ready_count": 63,
